@@ -72,6 +72,23 @@ try:
 except subprocess.TimeoutExpired:
     proc.kill()
     check(False, "ctrl+shift+q closes the console")
+# console -e program: a window running that, not a shell, called after it,
+# closing when it ends (a bundle only: the checkout has no launcher).
+if len(sys.argv) > 1:
+    marker = work + "/ran-by-e.txt"
+    run = subprocess.Popen([os.path.abspath(sys.argv[1]), "-e", "sh", "-c", "echo \"it's run\" > " + marker + "; sleep 3"], cwd=work, env=env, stdout=log, stderr=subprocess.STDOUT)
+    check(wait_title("sh — console", 30), "console -e: a window titled after the program")
+    end = time.time() + 10
+    while time.time() < end and not os.path.exists(marker):
+        time.sleep(0.2)
+    check(os.path.exists(marker) and open(marker).read() == "it's run\n", "console -e: the program runs, its arguments whole")
+    try:
+        run.wait(15)
+        check(True, "console -e: the window closes when the program ends")
+    except subprocess.TimeoutExpired:
+        run.kill()
+        check(False, "console -e: the window closes when the program ends")
+
 if failures:
     print(open(work + "/console.log").read()[-2000:])
 shutil.rmtree(work, ignore_errors=True)

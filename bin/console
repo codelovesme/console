@@ -1,8 +1,10 @@
 #!/bin/sh
 # console — the codelovesme console: a terminal in a window of its own.
 #
-#   console [folder]       open a window; its terminals start in folder
-#   console --desktop      add it to the desktop's applications menu
+#   console [folder]         open a window; its terminals start in folder
+#   console -e program [arg…]  a window running program, not a shell (also --);
+#                            it closes when the program ends
+#   console --desktop        add it to the desktop's applications menu
 #
 # Starts the console program from its own folder, where its organelles sit
 # — it links them from there while it runs — and tells it where terminals
@@ -11,7 +13,22 @@ set -e
 here=$(dirname "$(readlink -f "$0")")
 case "${1:-}" in
   --version|-V) echo "console $(cat "$here/VERSION" 2>/dev/null || echo dev)"; exit 0 ;;
-  --help|-h) sed -n '2,5p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  --help|-h) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  -e|--)
+    shift
+    [ $# -gt 0 ] || { echo "console: -e needs a program to run" >&2; exit 1; }
+    # The program and its arguments as one shell line, each word quoted.
+    run=""
+    for word in "$@"; do
+      run="$run '$(printf '%s' "$word" | sed "s/'/'\\\\''/g")'"
+    done
+    CONSOLE_RUN=$run
+    CONSOLE_TITLE=${CONSOLE_TITLE:-$(basename "$1")}
+    export CONSOLE_RUN CONSOLE_TITLE
+    CONSOLE_DIR=${PWD:-$HOME}
+    export CONSOLE_DIR
+    cd "$here"
+    exec ./console-bin ;;
   --desktop)
     apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
     mkdir -p "$apps"

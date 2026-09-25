@@ -86,6 +86,10 @@ EuglenaHasBeenBorn { cell_name } =>
     emit Get { name = "HOME", default = "/" } to vars get home
     start_dir = chosen.value
     if start_dir = "", start_dir = home.value
+    | `console -e program …` (bin/console): the first terminal runs that
+    | instead of the shell, and is called after it.
+    emit Get { name = "CONSOLE_RUN", default = "" } to vars get run_given
+    emit Get { name = "CONSOLE_TITLE", default = "" } to vars get title_given
     emit Get { name = "XDG_CONFIG_HOME", default = "" } to vars get xdg
     config = xdg.value
     if config = "", config = home.value + "/.config"
@@ -100,7 +104,7 @@ EuglenaHasBeenBorn { cell_name } =>
     cols = opened.cols
     rows = opened.rows
     running = true
-    emit NewTerminal { slot = "c" } to this get first
+    emit NewTerminal { slot = "c", run = run_given.value, title = title_given.value } to this get first
     if first ∈ Failed, return first
     emit Render to this
     return Alive { cell_name = cell_name }
@@ -262,17 +266,24 @@ ScrollBy { id, command } =>
     return Scrolled
 
 | A new terminal, running the shell (settings: terminal.shell) in the
-| folder the console started in, as a tab in the group in `slot`.
-NewTerminal { slot } =>
+| folder the console started in, as a tab in the group in `slot` — or, when
+| `run` is given (a shell command line), running that, its tab called
+| `title`.
+NewTerminal { slot, run, title } =>
     request = Open { cols = 80, rows = 24, cwd = start_dir, scrollback = settings["terminal.scrollback"] }
     shell = settings["terminal.shell"]
     if shell ≠ "", request = request + { command = shell }
+    runs = run ∈ String
+    if runs, runs = run ≠ ""
+    if runs, request = request + { command = "/bin/sh", args = ["-c", run] }
     emit request to shells get opened
     if opened ∈ Exception
         message = "a terminal could not be opened: " + opened.message
         return Failed { reason = message }
     opened_count += 1
-    view = { kind = "terminal", path = "Terminal " + opened_count, store = "terminal", id = opened.id, label = "Terminal " + opened_count }
+    label = "Terminal " + opened_count
+    if runs and title ∈ String and title ≠ "", label = title
+    view = { kind = "terminal", path = "Terminal " + opened_count, store = "terminal", id = opened.id, label = label }
     emit OpenIn { groups = groups, slot = slot, buffer = view } to this get placed
     groups = placed.groups
     current = placed.current

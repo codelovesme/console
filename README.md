@@ -10,8 +10,16 @@ for these keys) gets them all, here or over ssh.
 cdlvsm install console
 cdlvsm console               # a window; its terminals start where you are
 cdlvsm console ~/project     # …or there
-cdlvsm console --desktop     # add it to the applications menu
+cdlvsm console -e htop       # a window running a program, not a shell
 ```
+
+`console -e program [arg…]` (or `--`, as xterm and GNOME Terminal take it)
+opens a window whose terminal runs that program instead of the shell, named
+after it (`CONSOLE_TITLE` names it otherwise), in the folder you are in; the
+window closes when the program ends. cdlvsm puts the console in the
+desktop's applications menu when it installs it, and opens terminal apps —
+the ide — in it: its release's `app.info` says it runs programs
+(`runs-programs=-e`). `console --desktop` adds a menu entry by hand.
 
 Linux, X11 or Wayland.
 

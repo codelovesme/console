@@ -140,6 +140,17 @@ emit ReadSettings { text = "{ \"font.size\": 2, \"split.size\": 30 }" } to this 
 assert checked.values["font.size"] = 15 and checked.values["split.size"] = 30
 assert checked.problem = "settings.json: using the default for font.size (6 to 96)"
 
+| `console -e program`: a terminal running a program, not the shell, its
+| tab called after it.
+emit NewTerminal { slot = "c", run = "printf 'ran-%s\\n' \$((40 + 2)); sleep 5", title = "demo" } to this get ran
+assert ran ∈ Opened
+emit WaitFor { part = "ran-42", seconds = 5 } to this get ran_shown
+assert ran_shown.yes
+emit FindTerminal { id = ran.id } to this get ran_at
+emit State to this get ran_state
+assert ran_state.groups[ran_at.group].tabs[ran_at.tab].label = "demo"
+emit Close { id = ran.id } to shells_lib
+
 | A terminal whose program ends closes its tab.
 emit State to this get before_exit
 emit TerminalExited { id = tid, code = 0 } to this
