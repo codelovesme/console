@@ -1,0 +1,211 @@
+| Keys — which command a key runs. Pure.
+|
+| VS Code's way: a list of default bindings, and the user's own in
+| keybindings.json (beside settings.json) on top of them —
+|
+|     [
+|         { "key": "ctrl+shift+n", "command": "tab.new" },
+|         { "key": "ctrl+shift+t", "command": "-tab.new" }
+|     ]
+|
+| A later entry wins; `-command` takes that key's default away. A key with
+| a space in it is a chord. A key that runs no command goes to the
+| terminal that has the keys — which is why every default here is
+| Ctrl+Shift+something: Ctrl+Tab, Ctrl+J, Alt+arrows and the rest reach the
+| program inside (an editor, the ide) whole.
+
+defaults = [
+    { key = "ctrl+shift+t", command = "tab.new" }
+    { key = "ctrl+shift+w", command = "tab.close" }
+    { key = "ctrl+shift+pagedown", command = "tab.next" }
+    { key = "ctrl+shift+pageup", command = "tab.previous" }
+    { key = "ctrl+shift+right", command = "tab.next" }
+    { key = "ctrl+shift+left", command = "tab.previous" }
+    { key = "ctrl+shift+d", command = "split.right" }
+    { key = "ctrl+shift+e", command = "split.down" }
+    { key = "ctrl+shift+]", command = "focus.next" }
+    { key = "ctrl+shift+[", command = "focus.previous" }
+    { key = "ctrl+shift+c", command = "edit.copy" }
+    { key = "ctrl+shift+v", command = "edit.paste" }
+    { key = "shift+pageup", command = "scroll.pageUp" }
+    { key = "shift+pagedown", command = "scroll.pageDown" }
+    { key = "ctrl+shift+up", command = "scroll.lineUp" }
+    { key = "ctrl+shift+down", command = "scroll.lineDown" }
+    { key = "ctrl+shift+home", command = "scroll.top" }
+    { key = "ctrl+shift+end", command = "scroll.bottom" }
+    { key = "ctrl+shift+,", command = "settings.open" }
+    { key = "ctrl+shift+q", command = "app.quit" }
+]
+
+| Every command a key can run, with what it does — the only names
+| keybindings.json may use.
+commands = [
+    { id = "tab.new", title = "A new terminal, as a tab beside this one" }
+    { id = "tab.close", title = "Close this terminal" }
+    { id = "tab.next", title = "Next tab, round" }
+    { id = "tab.previous", title = "Previous tab, round" }
+    { id = "split.right", title = "A new terminal on the right" }
+    { id = "split.down", title = "A new terminal below" }
+    { id = "focus.next", title = "The next terminal shown gets the keys" }
+    { id = "focus.previous", title = "The previous terminal shown gets the keys" }
+    { id = "edit.copy", title = "Copy the selection" }
+    { id = "edit.paste", title = "Paste" }
+    { id = "scroll.pageUp", title = "Scroll back a page" }
+    { id = "scroll.pageDown", title = "Scroll forward a page" }
+    { id = "scroll.lineUp", title = "Scroll back a line" }
+    { id = "scroll.lineDown", title = "Scroll forward a line" }
+    { id = "scroll.top", title = "Scroll to the oldest line kept" }
+    { id = "scroll.bottom", title = "Back to the live screen" }
+    { id = "settings.open", title = "Settings (settings.json) in a new tab's editor" }
+    { id = "app.quit", title = "Close every terminal and the window" }
+]
+
+| How a key's parts are shown; anything else is shown in capitals.
+shown_as = {
+    ctrl = "Ctrl"
+    shift = "Shift"
+    alt = "Alt"
+    pagedown = "PgDn"
+    pageup = "PgUp"
+    enter = "Enter"
+    escape = "Esc"
+    space = "Space"
+    tab = "Tab"
+    backspace = "Backspace"
+    delete = "Delete"
+    home = "Home"
+    end = "End"
+    insert = "Insert"
+    right = "→"
+    "`" = "`"
+    left = "←"
+    up = "↑"
+    down = "↓"
+}
+
+modifier_order = ["ctrl", "shift", "alt"]
+
+| The `json` and `strings` organelles, handed over when the console links them.
+parser = null
+texts = null
+
+KeysUses { json, strings as given_strings } =>
+    parser = json
+    texts = given_strings
+    return Using
+
+| One key (no chord) as the tty names it: lower case, modifiers in the
+| order ctrl, shift, alt — so `Shift+Ctrl+E` is `ctrl+shift+e`.
+OneKey { key } =>
+    emit Lower { value = key } to texts get lowered
+    emit Split { value = lowered.value, separator = "+" } to texts get parts
+    emit Length { value = parts.value } to core get { value as count }
+    if count < 1, return Normal { key = "" }
+    last_part = parts.value[count - 1]
+    mods = {}
+    loop part over parts.value[0, count - 1)
+        mods = mods + { "$part" = true }
+    name = ""
+    loop mod over modifier_order
+        if mods[mod] = true, name = name + mod + "+"
+    return Normal { key = name + last_part }
+
+| A key or a chord, normalised part by part.
+NormalKey { key } =>
+    emit Trim { value = key } to texts get trimmed
+    emit Split { value = trimmed.value, separator = " " } to texts get steps
+    out = ""
+    loop i, step over steps.value
+        if step ≠ ""
+            emit OneKey { key = step } to this get one
+            if out ≠ "", out = out + " "
+            out = out + one.key
+    return Normal { key = out }
+
+| A key as the menus show it: `ctrl+k ctrl+o` → `Ctrl+K Ctrl+O`.
+KeyLabel { key } =>
+    emit Split { value = key, separator = " " } to texts get steps
+    out = ""
+    loop step over steps.value
+        emit Split { value = step, separator = "+" } to texts get parts
+        shown = ""
+        loop part over parts.value
+            word = shown_as[part]
+            if word = null
+                emit Upper { value = part } to texts get upper
+                word = upper.value
+            if shown ≠ "", shown = shown + "+"
+            shown = shown + word
+        if out ≠ "", out = out + " "
+        out = out + shown
+    return Label { text = out }
+
+| The table keys are looked up in, from the defaults and `user` (the
+| entries of keybindings.json, or null). Answers `Keytable { keys, prefixes,
+| labels, problem }`: what each key runs, the first keys of chords, each
+| command's first key as shown, and what was wrong with the user's entries.
+Bindings { user } =>
+    known = {}
+    loop c over commands
+        known = known + { "$c.id" = true }
+    entries = defaults
+    wrong = []
+    if user ≠ null and user ∉ Array, wrong += "keybindings.json should be a list"
+    if user ∈ Array
+        loop i, entry over user
+            good = entry ∈ Object
+            if good, good = entry.key ∈ String and entry.command ∈ String
+            if not good, wrong += "entry " + (i + 1) + " needs a \"key\" and a \"command\""
+            if good
+                name = entry.command
+                if name[0] = "-", name = name[1, length)
+                if known[name] ≠ true
+                    wrong += "entry " + (i + 1) + ": no command \"" + name + "\""
+                    good = false
+            if good, entries = entries + [entry]
+    keys = {}
+    loop entry over entries
+        emit NormalKey { key = entry.key } to this get normal
+        key = normal.key
+        command = entry.command
+        if command[0] = "-" and keys[key] = command[1, length), keys = keys + { "$key" = null }
+        if command[0] ≠ "-", keys = keys + { "$key" = command }
+    prefixes = {}
+    labels = {}
+    loop key, command over keys
+        if command ≠ null
+            emit Split { value = key, separator = " " } to texts get steps
+            emit Length { value = steps.value } to core get { value as count }
+            first = steps.value[0]
+            if count > 1, prefixes = prefixes + { "$first" = true }
+            if labels[command] = null
+                emit KeyLabel { key = key } to this get label
+                labels = labels + { "$command" = label.text }
+    problem = ""
+    loop i, what over wrong
+        if i = 0, problem = "keybindings.json: " + what
+        if i > 0, problem = problem + "; " + what
+    return Keytable { keys = keys, prefixes = prefixes, labels = labels, problem = problem }
+
+| `user`'s text (keybindings.json, or null when there is none) as a table.
+ReadBindings { text } =>
+    if text = null
+        emit Bindings { user = null } to this get table
+        return table
+    emit Parse { text = text } to parser get parsed
+    if parsed ∈ Exception
+        emit Bindings { user = null } to this get fallback
+        return fallback + { problem = "keybindings.json is not valid JSON — using the defaults" }
+    emit Bindings { user = parsed.value } to this get table
+    return table
+
+| `pending` is the first key of a chord, or `""`. Answers the command to
+| run (or null), what is pending after this key, and the chord it made.
+Keymap { name, pending, table } =>
+    if pending ≠ ""
+        chord = pending + " " + name
+        return Command { command = table.keys[chord], pending = "", chord = chord }
+    if table.prefixes[name] = true, return Command { command = null, pending = name, chord = "" }
+    return Command { command = table.keys[name], pending = "", chord = "" }
+
+| The key table: the defaults, and `user`'s entries (keybindings.json) on top.

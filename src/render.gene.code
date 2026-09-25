@@ -1,0 +1,180 @@
+| Render — the whole window from the state. Pure: the state in, what to
+| draw out, as the `window` organelle's overlays (`{ row, col, spans }`,
+| the `tty` module's shape), with where the cursor goes and where the
+| mouse can click.
+|
+| Every group of terminals sits where `Layout` puts its slot (see
+| layout.gene.code): a tab strip on its first row — left out when there is
+| one terminal in all, unless `tabs.alwaysShow` — then the active
+| terminal's screen, in the colours its program gave. A group not at the
+| left edge has a line down its left side.
+
+texts = null
+| A tab's label is cut to this many characters.
+label_most = 28
+
+RenderUses { strings } =>
+    texts = strings
+    return Using
+
+| Where each group goes: the layout's rectangles for its slots, the side
+| tracks `split.size` percent of the window.
+Placement { state } =>
+    panes = []
+    loop i, group over state.groups
+        panes += { id = i, slot = group.slot }
+    pct = state.settings["split.size"]
+    wide = state.cols * pct / 100
+    high = state.rows * pct / 100
+    emit Layout { width = state.cols, height = state.rows, panes = panes, sizes = { left = wide, right = wide, top = high, bottom = high } } to this get placed
+    return Placement { placed = placed.panes }
+
+| Whether tab strips are drawn: more than one terminal, or asked to.
+Strips { state } =>
+    count = 0
+    loop group over state.groups
+        emit Length { value = group.tabs } to core get { value as tabs }
+        count += tabs
+    return Shown { strips = count > 1 or state.settings["tabs.alwaysShow"] = true }
+
+| The tab strip: every tab's label, the active one lit; `hits` says which
+| columns each tab takes, for a click.
+TabStrip { tabs, active, width, focused, x } =>
+    spans = []
+    hits = []
+    at = x
+    loop i, tab over tabs
+        name = tab.label
+        emit Length { value = name } to core get { value as name_size }
+        if name_size > label_most, name = name[0, label_most - 1) + "…"
+        label = " " + name + " "
+        emit Length { value = label } to core get { value as size }
+        style = "pane_title"
+        if i = active and focused, style = "selected_focus"
+        if i = active and not focused, style = "selected"
+        spans += { text = label, style = style }
+        hits += { from = at, until = at + size, tab = i }
+        at += size
+    return TabSpans { spans = spans, hits = hits }
+
+| The text of screen row `line` (a list of spans), whole.
+LineText { line } =>
+    out = ""
+    if line = null, return Text { text = out }
+    loop span over line
+        out = out + span.text
+    return Text { text = out }
+
+| `selection` (`{ anchor, head }`, each `{ row, col }`, either order) as runs,
+| row by row: `{ row, first, last }`, `last` not included.
+Runs { selection, rows, cols } =>
+    a = selection.anchor
+    b = selection.head
+    if b.row < a.row or (b.row = a.row and b.col < a.col)
+        a = selection.head
+        b = selection.anchor
+    runs = []
+    r = a.row
+    loop
+        if r > b.row, break
+        first = 0
+        last = cols
+        if r = a.row, first = a.col
+        if r = b.row, last = b.col + 1
+        if r ≥ 0 and r < rows and last > first, runs += { row = r, first = first, last = last }
+        r += 1
+    return Runs { runs = runs }
+
+| `text` without the spaces at its end.
+TrimEnd { text } =>
+    emit Length { value = text } to core get { value as size }
+    stop = size
+    loop
+        if stop = 0 or text[stop - 1] ≠ " ", break
+        stop = stop - 1
+    return Text { text = text[0, stop) }
+
+| The selected text of `screen`, rows joined by newlines, trailing spaces off.
+SelectedText { screen, selection } =>
+    emit Length { value = screen.lines } to core get { value as rows }
+    emit Runs { selection = selection, rows = rows, cols = 100000 } to this get runs
+    lines = []
+    loop run over runs.runs
+        emit LineText { line = screen.lines[run.row] } to this get row_text
+        emit TrimEnd { text = row_text.text[run.first, run.last) } to this get kept
+        lines += kept.text
+    emit Join { value = lines, separator = "\n" } to texts get joined
+    return Text { text = joined.value }
+
+| A terminal's screen in `pane`: each row's spans in the terminal's own
+| colours, the selection over them, and its cursor when it has the keys.
+TerminalRows { pane, screen, focused, selection } =>
+    out = []
+    if screen = null, return PaneView { overlays = out }
+    loop i, line over screen.lines
+        if i < pane.height
+            spans = []
+            loop span over line
+                spans += span + { style = "plain" }
+            out += { row = pane.y + i, col = pane.x, spans = spans }
+    if selection ≠ null
+        emit Runs { selection = selection, rows = pane.height, cols = pane.width } to this get runs
+        loop run over runs.runs
+            emit LineText { line = screen.lines[run.row] } to this get row_text
+            text = row_text.text[run.first, run.last)
+            emit Length { value = text } to core get { value as size }
+            out += { row = pane.y + run.row, col = pane.x + run.first, spans = [{ text = text, width = run.last - run.first, style = "selected_focus" }] }
+    view = PaneView { overlays = out }
+    if focused and screen.cursor_visible
+        view = view + { cursor_row = pane.y + screen.cursor_row, cursor_col = pane.x + screen.cursor_col }
+    if screen.scrolled > 0
+        note = " ↑ " + screen.scrolled + " lines back "
+        emit Length { value = note } to core get { value as note_size }
+        view = view + { overlays = out + [{ row = pane.y, col = pane.x + pane.width - note_size, spans = [{ text = note, style = "status" }] }] }
+    return view
+
+| One group in its place: the line down its left edge (unless it is at the
+| window's), its tab strip, and its active terminal. Answers the overlays,
+| the cursor if it has the keys, and `body` — where the terminal is — and
+| `hits` for clicks on the strip.
+GroupView { area, group, index, state, screens, strips } =>
+    out = []
+    pane = area
+    if area.x > 0
+        i = 0
+        loop
+            if i ≥ area.height, break
+            out += { row = area.y + i, col = area.x, spans = [{ text = "│", style = "border" }] }
+            i += 1
+        pane = area + { x = area.x + 1, width = area.width - 1 }
+    focused = index = state.current
+    body = pane
+    hits = []
+    if strips
+        emit TabStrip { tabs = group.tabs, active = group.active, width = pane.width, focused = focused, x = pane.x } to this get strip
+        out += { row = pane.y, col = pane.x, spans = [{ text = "", width = pane.width, style = "pane_title" }] }
+        out += { row = pane.y, col = pane.x, spans = strip.spans }
+        hits = strip.hits
+        body = pane + { y = pane.y + 1, height = pane.height - 1 }
+    view = group.tabs[group.active]
+    selection = null
+    if state.selection ≠ null and state.selection.id = view.id, selection = state.selection
+    emit TerminalRows { pane = body, screen = screens["$view.id"], focused = focused, selection = selection } to this get rows
+    return GroupDrawn { overlays = out + rows.overlays, cursor_row = rows.cursor_row, cursor_col = rows.cursor_col, body = body, hits = hits, id = view.id }
+
+| Everything: the overlays, the cursor, and per group where its terminal
+| is and where its tabs are (for the mouse, and for sizing each terminal).
+Frame { state, placement, screens } =>
+    emit Strips { state = state } to this get strips
+    overlays = []
+    cursor_row = null, cursor_col = null
+    places = []
+    loop area over placement.placed
+        if area.id ≥ 0
+            emit GroupView { area = area, group = state.groups[area.id], index = area.id, state = state, screens = screens, strips = strips.strips } to this get drawn
+            overlays = overlays + drawn.overlays
+            places += { group = area.id, body = drawn.body, hits = drawn.hits, id = drawn.id, tab_row = area.y }
+            if drawn.cursor_row ≠ null
+                cursor_row = drawn.cursor_row
+                cursor_col = drawn.cursor_col
+    return Screen { overlays = overlays, cursor_row = cursor_row, cursor_col = cursor_col, places = places }

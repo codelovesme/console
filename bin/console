@@ -1,0 +1,36 @@
+#!/bin/sh
+# console — the codelovesme console: a terminal in a window of its own.
+#
+#   console [folder]       open a window; its terminals start in folder
+#   console --desktop      add it to the desktop's applications menu
+#
+# Starts the console program from its own folder, where its organelles sit
+# — it links them from there while it runs — and tells it where terminals
+# start.
+set -e
+here=$(dirname "$(readlink -f "$0")")
+case "${1:-}" in
+  --version|-V) echo "console $(cat "$here/VERSION" 2>/dev/null || echo dev)"; exit 0 ;;
+  --help|-h) sed -n '2,5p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  --desktop)
+    apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    mkdir -p "$apps"
+    cat > "$apps/codelovesme-console.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=console
+Comment=A terminal in a window of its own (codelovesme)
+Exec=$here/console
+Terminal=false
+Categories=System;TerminalEmulator;
+Keywords=terminal;shell;command;
+DESKTOP
+    echo "console: added to the applications menu ($apps/codelovesme-console.desktop)"
+    exit 0 ;;
+esac
+folder=${1:-${PWD:-$HOME}}
+[ -d "$folder" ] || { echo "console: not a folder: $folder" >&2; exit 1; }
+CONSOLE_DIR=$(cd "$folder" && pwd)
+export CONSOLE_DIR
+cd "$here"
+exec ./console-bin

@@ -1,0 +1,76 @@
+| Settings — the user's preferences, as VS Code keeps them: a JSON file,
+| `settings.json`, in `$XDG_CONFIG_HOME/codelovesme-console/` (else
+| `~/.config/…`). Read at start, and again when the tab that edits it
+| (Ctrl+Shift+,) closes. Pure: text in, checked values out.
+|
+| A value that is missing or not what it should be falls back to its
+| default, and says so — a typo in the file never stops the console.
+
+defaults = {
+    | A font file; "" is the system's monospace (fontconfig).
+    "font.family" = ""
+    "font.bold" = ""
+    "font.size" = 15
+    | The program each terminal runs; "" is $SHELL.
+    "terminal.shell" = ""
+    "terminal.scrollback" = 5000
+    "window.cols" = 110
+    "window.rows" = 32
+    | How much of the window a split takes, in percent.
+    "split.size" = 50
+    | The tab strip over a single terminal: shown or not.
+    "tabs.alwaysShow" = false
+}
+
+| Numbers: the key, and the least and most it may be.
+numbers = [
+    { key = "font.size", least = 6, most = 96 }
+    { key = "terminal.scrollback", least = 0, most = 100000 }
+    { key = "window.cols", least = 20, most = 1000 }
+    { key = "window.rows", least = 5, most = 500 }
+    { key = "split.size", least = 10, most = 90 }
+]
+strings_keys = ["font.family", "font.bold", "terminal.shell"]
+
+| The `json` organelle, handed over when the console links it.
+parser = null
+
+SettingsUses { json } =>
+    parser = json
+    return Using
+
+| `text` (the file, or null when there is none) as settings: every setting
+| with a good value, and what was wrong (`""` when nothing was).
+ReadSettings { text } =>
+    if text = null, return Prefs { values = defaults, problem = "" }
+    emit Parse { text = text } to parser get parsed
+    if parsed ∈ Exception
+        return Prefs { values = defaults, problem = "settings.json is not valid JSON — using the defaults" }
+    given = parsed.value
+    if given ∉ Object
+        return Prefs { values = defaults, problem = "settings.json should be an object — using the defaults" }
+    values = defaults
+    wrong = []
+    loop track over numbers
+        n = given[track.key]
+        good = n ∈ Number
+        if good, good = n ≥ track.least and n ≤ track.most
+        if good, values = values + { "$track.key" = n }
+        if n ≠ null and not good, wrong += track.key + " (" + track.least + " to " + track.most + ")"
+    loop key over strings_keys
+        s = given[key]
+        if s ∈ String, values = values + { "$key" = s }
+        if s ≠ null and s ∉ String, wrong += key + " (text)"
+    always = given["tabs.alwaysShow"]
+    if always ∈ Boolean, values = values + { "tabs.alwaysShow" = always }
+    if always ≠ null and always ∉ Boolean, wrong += "tabs.alwaysShow (true or false)"
+    problem = ""
+    loop i, what over wrong
+        if i = 0, problem = "settings.json: using the default for " + what
+        if i > 0, problem = problem + ", " + what
+    return Prefs { values = values, problem = problem }
+
+| `values` as the text of settings.json.
+WriteSettings { values } =>
+    emit Stringify { value = values, pretty = true } to parser get text
+    return SettingsText { text = text.value + "\n" }

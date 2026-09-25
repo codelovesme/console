@@ -1,0 +1,77 @@
+name: Release
+
+# A `v*` tag builds the bundle `cdlvsm install console` fetches:
+# console-<tag>-x86_64-linux.tar.gz — the console built as a program, its launcher,
+# and the organelles beside it; it needs no code interpreter to run. Everything comes from public releases, the way
+# anyone would get it: cdlvsm installs euglena (and code), euglena installs
+# the organelles pinned in .code/lock.json. A manual run does everything but
+# publish.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+# Pinned, so a build is repeatable and cdlvsm never has to ask GitHub's API
+# what is latest (anonymous calls from shared runners get rate-limited).
+env:
+  CDLVSM_EUGLENA_VERSION: v0.4.3
+  CDLVSM_CODE_VERSION: v2.9.0
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # A font for the window's letters (the tests draw them too), and an X
+      # display to smoke-test a real window on.
+      - name: Fonts and Xvfb
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends xvfb libxkbcommon0 libxkbcommon-x11-0 fonts-dejavu-core fontconfig
+
+      - name: Install cdlvsm, euglena and code
+        run: |
+          set -euo pipefail
+          curl -sSf https://raw.githubusercontent.com/codelovesme/cdlvsm/main/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/cdlvsm" install euglena
+
+      - name: Install the organelles
+        run: |
+          cdlvsm euglena install
+          tools/organelles.sh
+
+      - name: Test (and generate main.code)
+        run: cdlvsm euglena test
+
+      - name: Version
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = tag ]; then v="${{ github.ref_name }}"; else v="dev"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Package
+        run: tools/package.sh "${{ steps.version.outputs.version }}" dist
+
+      - name: Smoke test the bundle in a real window (Xvfb) — its own organelles, no code
+        run: |
+          set -euo pipefail
+          rm -rf .code/modules organelles "$HOME/.code/modules"
+          mkdir -p "$RUNNER_TEMP/bare-home"
+          HOME="$RUNNER_TEMP/bare-home" PATH=/usr/bin:/bin \
+            xvfb-run -a -s "-screen 0 1280x800x24" python3 tools/smoke.py "dist/console-${{ steps.version.outputs.version }}-x86_64-linux/console"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: console-bundle
+          path: dist/*.tar.gz
+
+      - name: Publish
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" dist/*.tar.gz --title "console ${{ github.ref_name }}" --notes "Install with \`cdlvsm install console\`, then run \`cdlvsm console\` (and \`cdlvsm console --desktop\` for the applications menu)."

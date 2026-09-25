@@ -1,0 +1,140 @@
+| The console driven the way the window drives it, on a window of its own
+| that draws into memory (`headless`): a shell in a terminal, typed into,
+| its output drawn; tabs, a split, scrolling back, a selection, keys from
+| keybindings.json, settings checked, a terminal's end closing its tab.
+
+link "../src/app.gene.code"
+link "../src/keys.gene.code"
+link "../src/layout.gene.code"
+link "../src/render.gene.code"
+link "../src/settings.gene.code"
+link "../src/tabs.gene.code"
+
+| The window and strings organelles, and the window, once there are.
+window_lib = null
+strings_lib = null
+window_id = 0
+
+| Whether `part` is somewhere in `text`.
+Contains { text, part } =>
+    emit Length { value = text } to core get { value as size }
+    emit Length { value = part } to core get { value as want }
+    i = 0
+    loop
+        if i + want > size, break
+        if text[i, i + want) = part, return Is { yes = true }
+        i += 1
+    return Is { yes = false }
+
+| The window's rows, as one text.
+Drawn {} =>
+    emit Render to this
+    emit Text { id = window_id } to window_lib get shown
+    emit Join { value = shown.rows, separator = "\n" } to strings_lib get joined
+    return Text { text = joined.value }
+
+| Waits (at most `seconds`) until the window shows `part`; whether it did.
+WaitFor { part, seconds } =>
+    emit Timestamp {} to core get started
+    loop
+        emit Drawn to this get now
+        emit Contains { text = now.text, part = part } to this get found
+        if found.yes, return Is { yes = true }
+        emit Timestamp {} to core get later
+        if later.value - started.value > seconds, return Is { yes = false }
+
+emit UseOrganelles { from = "organelles" } to this get lib
+assert lib ∈ Linked
+window_lib = lib.window
+strings_lib = lib.strings
+shells_lib = lib.pty
+config_lib = lib.fs
+emit SettingsAt { dir = ".test-config" } to this get first_settings
+assert first_settings.values["split.size"] = 50
+emit Setting { key = "terminal.shell", value = "/bin/sh" } to this
+
+emit Open { headless = true, cols = 60, rows = 12 } to window_lib get opened
+assert opened ∈ WindowOpened
+window_id = opened.id
+emit Attach { window = opened.id, cols = opened.cols, rows = opened.rows } to this
+
+| A shell, typed into: its output is drawn.
+emit NewTerminal { slot = "c" } to this get made
+assert made ∈ Opened
+emit HandleKey { name = "e", text = "e" } to this
+loop ch over ["c", "h", "o", " ", "h", "i", "-", "t", "h", "e", "r", "e"]
+    emit HandleKey { name = ch, text = ch } to this
+emit HandleKey { name = "enter", text = "" } to this
+emit WaitFor { part = "\nhi-there", seconds = 5 } to this get echoed
+assert echoed.yes
+
+| A second tab: the strips show, and Ctrl+Shift+PgUp goes back round.
+emit HandleKey { name = "ctrl+shift+t", text = "" } to this
+emit State to this get two_tabs
+emit Length { value = two_tabs.groups[0].tabs } to core get { value as tab_count }
+assert tab_count = 2 and two_tabs.groups[0].active = 1
+emit HandleKey { name = "ctrl+shift+pageup", text = "" } to this
+emit State to this get back_first
+assert back_first.groups[0].active = 0
+emit Drawn to this get with_strip
+emit Contains { text = with_strip.text, part = " Terminal 2 " } to this get strip_shown
+assert strip_shown.yes
+
+| A split on the right, with the keys.
+emit HandleKey { name = "ctrl+shift+d", text = "" } to this
+emit State to this get split
+emit Length { value = split.groups } to core get { value as group_count }
+assert group_count = 2 and split.groups[split.current].slot = "r"
+emit Drawn to this get split_drawn
+emit Contains { text = split_drawn.text, part = "│" } to this get border
+assert border.yes
+emit HandleKey { name = "ctrl+shift+[", text = "" } to this
+emit State to this get focus_back
+assert focus_back.groups[focus_back.current].slot = "c"
+
+| Scrolling back: lines printed, a page up shows older ones and says so.
+loop ch over ["s", "e", "q", " ", "1", " ", "4", "0"]
+    emit HandleKey { name = ch, text = ch } to this
+emit HandleKey { name = "enter", text = "" } to this
+emit WaitFor { part = "\n40 ", seconds = 5 } to this get counted
+assert counted.yes
+emit HandleKey { name = "shift+pageup", text = "" } to this
+emit Drawn to this get scrolled
+emit Contains { text = scrolled.text, part = "lines back" } to this get marked
+assert marked.yes
+| A key goes to the shell, and brings the live screen back.
+emit HandleKey { name = "space", text = " " } to this
+emit Drawn to this get live
+emit Contains { text = live.text, part = "lines back" } to this get still_marked
+assert not still_marked.yes
+
+| A selection, made with the mouse, is the text under it.
+emit State to this get now_state
+emit Active { groups = now_state.groups, current = now_state.current } to this get shown_tab
+tid = shown_tab.buffer.id
+emit Render to this
+emit Hit { row = 2, col = 5 } to this get at_cell
+assert at_cell.id = tid and at_cell.at ≠ null
+emit ScreenOf { id = tid } to this get last_screen
+emit SelectedText { screen = last_screen.screen, selection = { anchor = { row = 0, col = 0 }, head = { row = 0, col = 200 } } } to this get picked
+assert picked.text ≠ ""
+
+| keybindings.json: a key of the user's runs its command; a default taken away.
+emit ReadBindings { text = "[{ \"key\": \"ctrl+alt+n\", \"command\": \"tab.new\" }, { \"key\": \"ctrl+shift+t\", \"command\": \"-tab.new\" }]" } to this get mine
+assert mine.keys["ctrl+alt+n"] = "tab.new" and mine.keys["ctrl+shift+t"] = null
+assert mine.keys["ctrl+tab"] = null
+| Settings: a bad value falls back, and says which.
+emit ReadSettings { text = "{ \"font.size\": 2, \"split.size\": 30 }" } to this get checked
+assert checked.values["font.size"] = 15 and checked.values["split.size"] = 30
+assert checked.problem = "settings.json: using the default for font.size (6 to 96)"
+
+| A terminal whose program ends closes its tab.
+emit State to this get before_exit
+emit TerminalExited { id = tid, code = 0 } to this
+emit State to this get after_exit
+assert after_exit.groups ≠ before_exit.groups
+
+emit Quit to this
+| The terminal whose end was only handed in is still running: closed too.
+emit Close { id = tid } to shells_lib
+emit RemoveDir { path = "." } to config_lib
