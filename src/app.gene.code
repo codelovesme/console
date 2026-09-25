@@ -47,6 +47,9 @@ texts = null
 
 settings = null
 settings_dir = ""
+| The letters' size now (Ctrl+Shift+= / -), in pixels; 0 until the window
+| opens at settings' font.size.
+font_px = 0
 keytable = null
 message = ""
 
@@ -93,6 +96,7 @@ EuglenaHasBeenBorn { cell_name } =>
     emit request to win get opened
     if opened ∈ Exception, return Failed { reason = opened.message }
     wid = opened.id
+    font_px = settings["font.size"]
     cols = opened.cols
     rows = opened.rows
     running = true
@@ -227,6 +231,16 @@ Run { command } =>
         emit Paste {} to win get clip
         if clip ∉ Exception and clip.text ≠ "", emit Paste { id = tid, text = clip.text } to shells
     if command[0, 7) = "scroll." and tid ≥ 0, emit ScrollBy { id = tid, command = command } to this
+    if command = "font.bigger" or command = "font.smaller" or command = "font.reset"
+        if font_px = 0, font_px = settings["font.size"]
+        px = font_px
+        if command = "font.bigger", px = px + 1
+        if command = "font.smaller", px = px - 1
+        if command = "font.reset", px = settings["font.size"]
+        if px < 6, px = 6
+        if px > 96, px = 96
+        emit Font { id = wid, size = px } to win get sized
+        if sized ∉ Exception, font_px = px
     if command = "settings.open", emit EditSettings to this
     if command = "app.quit", emit Quit to this
     return Ran
@@ -398,7 +412,7 @@ LoadSettings =>
 | ── Drawing ────────────────────────────────────────────────────────────
 
 State =>
-    return ConsoleState { groups = groups, current = current, cols = cols, rows = rows, settings = settings, selection = selection, message = message }
+    return ConsoleState { groups = groups, current = current, cols = cols, rows = rows, settings = settings, selection = selection, message = message, font_px = font_px }
 
 | Every terminal a group shows: told its size when that changed, and read
 | as far back as it is scrolled.

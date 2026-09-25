@@ -33,6 +33,9 @@ defaults = [
     { key = "ctrl+shift+down", command = "scroll.lineDown" }
     { key = "ctrl+shift+home", command = "scroll.top" }
     { key = "ctrl+shift+end", command = "scroll.bottom" }
+    { key = "ctrl+shift+=", command = "font.bigger" }
+    { key = "ctrl+shift+-", command = "font.smaller" }
+    { key = "ctrl+shift+0", command = "font.reset" }
     { key = "ctrl+shift+,", command = "settings.open" }
     { key = "ctrl+shift+q", command = "app.quit" }
 ]
@@ -56,6 +59,9 @@ commands = [
     { id = "scroll.lineDown", title = "Scroll forward a line" }
     { id = "scroll.top", title = "Scroll to the oldest line kept" }
     { id = "scroll.bottom", title = "Back to the live screen" }
+    { id = "font.bigger", title = "Bigger letters" }
+    { id = "font.smaller", title = "Smaller letters" }
+    { id = "font.reset", title = "The letters back to settings.json's font.size" }
     { id = "settings.open", title = "Settings (settings.json) in a new tab's editor" }
     { id = "app.quit", title = "Close every terminal and the window" }
 ]

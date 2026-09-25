@@ -2,8 +2,8 @@
   "modules": {
     "env": {
       "name": "env",
-      "version": "2.9.0",
-      "source": "https://github.com/codelovesme/code/releases/tag/v2.9.0",
+      "version": "2.10.0",
+      "source": "https://github.com/codelovesme/code/releases/tag/v2.10.0",
       "asset": "env-linux-x86_64.so",
       "sha256": "e280daed548bdd55414732ef0287b5868b732c9012623e4aecdcb35ed7a10afb",
       "handlers": [
@@ -14,8 +14,8 @@
     },
     "fs": {
       "name": "fs",
-      "version": "2.9.0",
-      "source": "https://github.com/codelovesme/code/releases/tag/v2.9.0",
+      "version": "2.10.0",
+      "source": "https://github.com/codelovesme/code/releases/tag/v2.10.0",
       "asset": "fs-linux-x86_64.so",
       "sha256": "f5002728e04de3103837bea2ac5fd4115e8398c73ed756989cbd814017a32a2c",
       "handlers": [
@@ -33,8 +33,8 @@
     },
     "json": {
       "name": "json",
-      "version": "2.9.0",
-      "source": "https://github.com/codelovesme/code/releases/tag/v2.9.0",
+      "version": "2.10.0",
+      "source": "https://github.com/codelovesme/code/releases/tag/v2.10.0",
       "asset": "json-linux-x86_64.so",
       "sha256": "f5b25f2dc157cd1afab3ba3369a17fe03180ea0bfb8f90972226e01ac7eadc05",
       "handlers": [
@@ -45,8 +45,8 @@
     },
     "pty": {
       "name": "pty",
-      "version": "2.9.0",
-      "source": "https://github.com/codelovesme/code/releases/tag/v2.9.0",
+      "version": "2.10.0",
+      "source": "https://github.com/codelovesme/code/releases/tag/v2.10.0",
       "asset": "pty-linux-x86_64.so",
       "sha256": "6c25dedaf6c2ea6893cd4ccbddda450e1dc9b03255dc0bfc8098cbb1bbdb2bda",
       "handlers": [
@@ -63,8 +63,8 @@
     },
     "strings": {
       "name": "strings",
-      "version": "2.9.0",
-      "source": "https://github.com/codelovesme/code/releases/tag/v2.9.0",
+      "version": "2.10.0",
+      "source": "https://github.com/codelovesme/code/releases/tag/v2.10.0",
       "asset": "strings-linux-x86_64.so",
       "sha256": "c9edcbf96ae98f3ad4d0918ee60df8644ad17867bce63ce7a80e81e9b4771e07",
       "handlers": [
@@ -80,14 +80,15 @@
     },
     "window": {
       "name": "window",
-      "version": "2.9.0",
-      "source": "https://github.com/codelovesme/code/releases/tag/v2.9.0",
+      "version": "2.10.0",
+      "source": "https://github.com/codelovesme/code/releases/tag/v2.10.0",
       "asset": "window-linux-x86_64.so",
-      "sha256": "b8f8e832f1ccdc89c96f19cd8caad8b3e2c0e7efe708bb6fdb9330b168639417",
+      "sha256": "5d725aeba9ee9a676b9377464f4e9ec16484567afa6dbc42c510f9593528205c",
       "handlers": [
         "Open",
         "Draw",
         "Title",
+        "Font",
         "Size",
         "Text",
         "Pixel",

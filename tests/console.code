@@ -119,6 +119,18 @@ emit ScreenOf { id = tid } to this get last_screen
 emit SelectedText { screen = last_screen.screen, selection = { anchor = { row = 0, col = 0 }, head = { row = 0, col = 200 } } } to this get picked
 assert picked.text ≠ ""
 
+| Ctrl+Shift+= / - / 0: the letters bigger, smaller, back.
+emit HandleKey { name = "ctrl+shift+=", text = "" } to this
+emit HandleKey { name = "ctrl+shift+=", text = "" } to this
+emit State to this get bigger
+assert bigger.font_px = 17
+emit HandleKey { name = "ctrl+shift+-", text = "" } to this
+emit State to this get smaller
+assert smaller.font_px = 16
+emit HandleKey { name = "ctrl+shift+0", text = "" } to this
+emit State to this get reset
+assert reset.font_px = 15
+
 | keybindings.json: a key of the user's runs its command; a default taken away.
 emit ReadBindings { text = "[{ \"key\": \"ctrl+alt+n\", \"command\": \"tab.new\" }, { \"key\": \"ctrl+shift+t\", \"command\": \"-tab.new\" }]" } to this get mine
 assert mine.keys["ctrl+alt+n"] = "tab.new" and mine.keys["ctrl+shift+t"] = null

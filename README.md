@@ -29,6 +29,7 @@ else goes to the program in the terminal.
 | Ctrl+Shift+C / Ctrl+Shift+V | Copy the selection / paste |
 | Shift+PgUp / Shift+PgDn, Ctrl+Shift+↑ / ↓ | Scroll back / forward a page, a line |
 | Ctrl+Shift+Home / End | The oldest line kept / back to the live screen |
+| Ctrl+Shift+= / Ctrl+Shift+- / Ctrl+Shift+0 | Bigger / smaller letters / back to font.size |
 | Ctrl+Shift+, | settings.json, in your `$EDITOR`, in a new tab |
 | Ctrl+Shift+Q | Close everything |
 
