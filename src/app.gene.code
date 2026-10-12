@@ -45,7 +45,7 @@ prefs = null
 vars = null
 texts = null
 
-settings = null
+settings ∈ Object of (Number ∪ String ∪ Boolean) = null
 settings_dir = ""
 | The letters' size now (Ctrl+Shift+= / -), in pixels; 0 until the window
 | opens at settings' font.size.
