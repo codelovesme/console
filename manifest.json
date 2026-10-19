@@ -10,5 +10,6 @@
     "window": "window"
   },
   "runtime": "native",
-  "title": "console"
+  "title": "console",
+  "code": ">=2.16.0"
 }
