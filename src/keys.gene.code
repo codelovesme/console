@@ -4,27 +4,18 @@
 | keybindings.json (beside settings.json) on top of them —
 |
 |     [
-|         { "key": "ctrl+shift+n", "command": "tab.new" },
-|         { "key": "ctrl+shift+t", "command": "-tab.new" }
+|         { "key": "ctrl+alt+c", "command": "edit.copy" },
+|         { "key": "ctrl+shift+c", "command": "-edit.copy" }
 |     ]
 |
 | A later entry wins; `-command` takes that key's default away. A key with
 | a space in it is a chord. A key that runs no command goes to the
-| terminal that has the keys — which is why every default here is
-| Ctrl+Shift+something: Ctrl+Tab, Ctrl+J, Alt+arrows and the rest reach the
-| program inside (an editor, the ide) whole.
+| terminal — which is why the defaults are few, and Ctrl+Shift+something:
+| Ctrl+Tab, Ctrl+J, Alt+arrows and the rest reach the program inside (an
+| editor, the ide) whole. No tabs, no splits: another terminal is another
+| console.
 
 defaults = [
-    { key = "ctrl+shift+t", command = "tab.new" }
-    { key = "ctrl+shift+w", command = "tab.close" }
-    { key = "ctrl+shift+pagedown", command = "tab.next" }
-    { key = "ctrl+shift+pageup", command = "tab.previous" }
-    { key = "ctrl+shift+right", command = "tab.next" }
-    { key = "ctrl+shift+left", command = "tab.previous" }
-    { key = "ctrl+shift+d", command = "split.right" }
-    { key = "ctrl+shift+e", command = "split.down" }
-    { key = "ctrl+shift+]", command = "focus.next" }
-    { key = "ctrl+shift+[", command = "focus.previous" }
     { key = "ctrl+shift+c", command = "edit.copy" }
     { key = "ctrl+shift+v", command = "edit.paste" }
     { key = "shift+pageup", command = "scroll.pageUp" }
@@ -36,24 +27,15 @@ defaults = [
     { key = "ctrl+shift+=", command = "font.bigger" }
     { key = "ctrl+shift+-", command = "font.smaller" }
     { key = "ctrl+shift+0", command = "font.reset" }
-    { key = "ctrl+shift+,", command = "settings.open" }
     { key = "ctrl+shift+q", command = "app.quit" }
 ]
 
 | Every command a key can run, with what it does — the only names
 | keybindings.json may use.
 commands = [
-    { id = "tab.new", title = "A new terminal, as a tab beside this one" }
-    { id = "tab.close", title = "Close this terminal" }
-    { id = "tab.next", title = "Next tab, round" }
-    { id = "tab.previous", title = "Previous tab, round" }
-    { id = "split.right", title = "A new terminal on the right" }
-    { id = "split.down", title = "A new terminal below" }
-    { id = "focus.next", title = "The next terminal shown gets the keys" }
-    { id = "focus.previous", title = "The previous terminal shown gets the keys" }
     { id = "edit.copy", title = "Copy the selection" }
     { id = "edit.paste", title = "Paste" }
-    { id = "scroll.pageUp", title = "Scroll back a page" }
+    { id = "scroll.pageUp", title = "Scroll back a page (a program on the alternate screen gets the scroll keys)" }
     { id = "scroll.pageDown", title = "Scroll forward a page" }
     { id = "scroll.lineUp", title = "Scroll back a line" }
     { id = "scroll.lineDown", title = "Scroll forward a line" }
@@ -62,8 +44,7 @@ commands = [
     { id = "font.bigger", title = "Bigger letters" }
     { id = "font.smaller", title = "Smaller letters" }
     { id = "font.reset", title = "The letters back to settings.json's font.size" }
-    { id = "settings.open", title = "Settings (settings.json) in a new tab's editor" }
-    { id = "app.quit", title = "Close every terminal and the window" }
+    { id = "app.quit", title = "Close the terminal and the window" }
 ]
 
 | How a key's parts are shown; anything else is shown in capitals.

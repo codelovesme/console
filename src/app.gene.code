@@ -2,15 +2,15 @@
 |
 | The one gene that holds state: a gene's top level is its handlers' whole
 | world, so everything that changes lives here and the others answer
-| particles (keys, layout, tabs, settings, render).
+| particles (keys, settings, render).
 |
-| The console is a window of its own (the `window` organelle) full of
-| terminals (the `pty` organelle): tabs, in groups, each group in a slot of
-| the layout — the ide's model, where everything is a tab. A key arrives
-| whole from the window (ctrl+tab is not tab) as `Key { id, name, text }`:
-| a bound command runs (keys.gene.code — Ctrl+Shift+… by default), anything
-| else goes to the terminal with the keys, which passes it on the way its
-| program asked for keys. Then the window is drawn again.
+| The console is a window of its own (the `window` organelle) with one
+| terminal in it (the `pty` organelle) — no tabs, no splits: another
+| terminal is another console. A key arrives whole from the window (ctrl+tab
+| is not tab) as `Key { id, name, text }`: a bound command runs
+| (keys.gene.code — Ctrl+Shift+… by default), anything else goes to the
+| terminal, which passes it on the way its program asked for keys. Then the
+| window is drawn again.
 
 | The window, and its size in cells.
 wid = 0
@@ -18,18 +18,15 @@ cols = 110
 rows = 32
 running = false
 
-| The terminals: tabs (`{ kind = "terminal", path, store, id, label }`) in
-| groups (see tabs.gene.code), and the group with the keys.
-groups = []
-current = 0
-opened_count = 0
-| How far back each terminal is scrolled, and the size each was last told.
-scrolls = {}
-sizes_told = {}
-| What each terminal showed last (for copying a selection), and where each
-| group is on screen (for the mouse).
-screens = {}
-places = []
+| The terminal: `{ id, label }` — its label what its program calls
+| itself — or null before it opens.
+term = null
+| How far back it is scrolled, and the size it was last told.
+scroll = 0
+size_told = ""
+| What it showed last (for copying a selection, and to know whether its
+| program is on the alternate screen).
+last_screen = null
 | A selection being made or made: `{ id, anchor, head, dragging }`, cells in the
 | terminal's body.
 selection = null
@@ -104,7 +101,7 @@ EuglenaHasBeenBorn { cell_name } =>
     cols = opened.cols
     rows = opened.rows
     running = true
-    emit NewTerminal { slot = "c", run = run_given.value, title = title_given.value } to this get first
+    emit NewTerminal { run = run_given.value, title = title_given.value } to this get first
     if first ∈ Failed, return first
     emit Render to this
     return Alive { cell_name = cell_name }
@@ -123,9 +120,9 @@ Setting { key, value } =>
     settings = settings + { "$key" = value }
     return Set
 
-| What terminal `id` showed last.
-ScreenOf { id } =>
-    return Shown { screen = screens["$id"] }
+| What the terminal showed last.
+ScreenOf =>
+    return Shown { screen = last_screen }
 
 | ── From the window ────────────────────────────────────────────────────
 
@@ -161,80 +158,39 @@ TerminalOutput { id } =>
     if running, emit Render to this
     return Drawn
 
-| A terminal's program ended: its tab closes; the last one closes the
-| console. The tab that edited settings.json has them read again.
+| The terminal's program ended: the console closes with it.
 TerminalExited { id, code } =>
-    emit FindTerminal { id = id } to this get where
-    if where.group < 0, return Nothing
-    view = groups[where.group].tabs[where.tab]
-    emit CloseAt { groups = groups, current = current, group = where.group, tab = where.tab } to this get closed
-    groups = closed.groups
-    current = closed.current
-    if view.settings = true
-        emit LoadSettings to this
-        emit LoadKeybindings to this
-    emit Length { value = groups } to core get { value as left }
-    if left = 0
-        emit Quit to this
-        return Closed
-    if running, emit Render to this
+    if term = null or id ≠ term.id, return Nothing
+    emit Quit to this
     return Closed
-
-FindTerminal { id } =>
-    loop gi, group over groups
-        loop ti, tab over group.tabs
-            if tab.id = id, return Place { group = gi, tab = ti }
-    return Place { group = -1, tab = -1 }
 
 | ── Keys ───────────────────────────────────────────────────────────────
 
-| A bound command runs; any other key goes to the terminal with the keys,
-| which is brought back to its live screen.
+| A bound command runs; any other key goes to the terminal, which is
+| brought back to its live screen. A program on the alternate screen (an
+| editor, the ide) has no scrollback: the scroll keys are its own.
 HandleKey { name, text } =>
     emit Keymap { name = name, pending = chord, table = keytable } to this get bound
     chord = bound.pending
     if chord ≠ "", return Waiting
-    if bound.command ≠ null
-        emit Run { command = bound.command } to this
+    command = bound.command
+    if command ≠ null and command[0, 7) = "scroll." and last_screen ≠ null and last_screen.alternate = true, command = null
+    if command ≠ null
+        emit Run { command = command } to this
         return Ran
-    emit Active { groups = groups, current = current } to this get shown
-    if shown.buffer = null, return Nothing
-    tid = shown.buffer.id
-    scrolls = scrolls + { "$tid" = 0 }
+    if term = null, return Nothing
+    scroll = 0
     selection = null
-    emit Type { id = tid, name = name, text = text } to shells
+    emit Type { id = term.id, name = name, text = text } to shells
     return Typed
 
 | A command, from a key.
 Run { command } =>
-    emit Active { groups = groups, current = current } to this get shown
-    tid = -1
-    if shown.buffer ≠ null, tid = shown.buffer.id
-    if command = "tab.new"
-        slot = "c"
-        if groups[current] ≠ null, slot = groups[current].slot
-        emit NewTerminal { slot = slot } to this
-    if command = "split.right", emit NewTerminal { slot = "r" } to this
-    if command = "split.down", emit NewTerminal { slot = "b" } to this
-    if command = "tab.close" and tid ≥ 0, emit Close { id = tid } to shells
-    if command = "tab.next" or command = "tab.previous"
-        step = 1
-        if command = "tab.previous", step = -1
-        emit StepTab { groups = groups, current = current, step = step } to this get stepped
-        groups = stepped.groups
-    if command = "focus.next" or command = "focus.previous"
-        emit Length { value = groups } to core get { value as count }
-        if count > 0
-            next = current + 1
-            if command = "focus.previous", next = current - 1
-            if next ≥ count, next = 0
-            if next < 0, next = count - 1
-            current = next
     if command = "edit.copy", emit CopySelection to this
-    if command = "edit.paste" and tid ≥ 0
+    if command = "edit.paste" and term ≠ null
         emit Paste {} to win get clip
-        if clip ∉ Exception and clip.text ≠ "", emit Paste { id = tid, text = clip.text } to shells
-    if command[0, 7) = "scroll." and tid ≥ 0, emit ScrollBy { id = tid, command = command } to this
+        if clip ∉ Exception and clip.text ≠ "", emit Paste { id = term.id, text = clip.text } to shells
+    if command[0, 7) = "scroll.", emit ScrollBy { command = command } to this
     if command = "font.bigger" or command = "font.smaller" or command = "font.reset"
         if font_px = 0, font_px = settings["font.size"]
         px = font_px
@@ -245,14 +201,12 @@ Run { command } =>
         if px > 96, px = 96
         emit Font { id = wid, size = px } to win get sized
         if sized ∉ Exception, font_px = px
-    if command = "settings.open", emit EditSettings to this
     if command = "app.quit", emit Quit to this
     return Ran
 
-| The terminal `id` scrolled back or forward (the command says how far).
-ScrollBy { id, command } =>
-    at = scrolls["$id"]
-    if at = null, at = 0
+| The terminal scrolled back or forward (the command says how far).
+ScrollBy { command } =>
+    at = scroll
     page = rows - 2
     if page < 1, page = 1
     if command = "scroll.pageUp", at += page
@@ -262,15 +216,14 @@ ScrollBy { id, command } =>
     if command = "scroll.top", at = 1000000
     if command = "scroll.bottom", at = 0
     if at < 0, at = 0
-    scrolls = scrolls + { "$id" = at }
+    scroll = at
     return Scrolled
 
-| A new terminal, running the shell (settings: terminal.shell) in the
-| folder the console started in, as a tab in the group in `slot` — or, when
-| `run` is given (a shell command line), running that, its tab called
-| `title`.
-NewTerminal { slot, run, title } =>
-    request = Open { cols = 80, rows = 24, cwd = start_dir, scrollback = settings["terminal.scrollback"] }
+| The terminal, running the shell (settings: terminal.shell) in the folder
+| the console started in — or, when `run` is given (a shell command line),
+| running that, called `title`.
+NewTerminal { run, title } =>
+    request = Open { cols = cols, rows = rows, cwd = start_dir, scrollback = settings["terminal.scrollback"] }
     shell = settings["terminal.shell"]
     if shell ≠ "", request = request + { command = shell }
     runs = run ∈ String
@@ -280,67 +233,33 @@ NewTerminal { slot, run, title } =>
     if opened ∈ Exception
         message = "a terminal could not be opened: " + opened.message
         return Failed { reason = message }
-    opened_count += 1
-    label = "Terminal " + opened_count
+    label = "Terminal"
     if runs and title ∈ String and title ≠ "", label = title
-    view = { kind = "terminal", path = "Terminal " + opened_count, store = "terminal", id = opened.id, label = label }
-    emit OpenIn { groups = groups, slot = slot, buffer = view } to this get placed
-    groups = placed.groups
-    current = placed.current
+    term = { id = opened.id, label = label }
+    scroll = 0
+    size_told = ""
     return Opened { id = opened.id }
-
-| settings.json, in the editor $EDITOR names (else `vi`), as a tab; when
-| it closes the settings are read again.
-EditSettings =>
-    emit Exists { path = "settings.json" } to prefs get there
-    if there ∉ Exception and not there.is_file
-        emit WriteSettings { values = settings } to this get written
-        emit WriteFile { path = "settings.json", content = written.text } to prefs
-    emit Get { name = "EDITOR", default = "vi" } to vars get editor
-    program = editor.value
-    if program = "", program = "vi"
-    emit Open { cols = 80, rows = 24, cwd = settings_dir, command = program, args = [settings_dir + "/settings.json"] } to shells get opened
-    if opened ∈ Exception
-        message = program + " could not be started: " + opened.message
-        return Failed
-    view = { kind = "terminal", path = "settings.json", store = "settings", id = opened.id, label = "settings.json", settings = true }
-    slot = "c"
-    if groups[current] ≠ null, slot = groups[current].slot
-    emit OpenIn { groups = groups, slot = slot, buffer = view } to this get placed
-    groups = placed.groups
-    current = placed.current
-    return Opened
 
 Quit =>
     running = false
-    loop group over groups
-        loop tab over group.tabs
-            emit Close { id = tab.id } to shells
+    if term ≠ null, emit Close { id = term.id } to shells
     emit Close { id = wid } to win
     return Quitting
 
 | ── The mouse ──────────────────────────────────────────────────────────
 
-| Where (`row`, `col`) is: the group, and whether on its tab strip (`tab`,
-| the tab clicked, or -1) or in its terminal (`at`, the cell in it).
+| Where (`row`, `col`) is in the terminal: the cell, or null outside it.
 Hit { row, col } =>
-    loop place over places
-        b = place.body
-        inside = col ≥ b.x and col < b.x + b.width
-        if inside and row = place.tab_row and row < b.y
-            loop hit over place.hits
-                if col ≥ hit.from and col < hit.until, return Hit { group = place.group, tab = hit.tab, at = null, id = place.id }
-            return Hit { group = place.group, tab = -1, at = null, id = place.id }
-        if inside and row ≥ b.y and row < b.y + b.height
-            return Hit { group = place.group, tab = -1, at = { row = row - b.y, col = col - b.x }, id = place.id }
-    return Hit { group = -1, tab = -1, at = null, id = -1 }
+    if row < 0 or col < 0 or row ≥ rows or col ≥ cols, return Hit { at = null }
+    return Hit { at = { row = row, col = col } }
 
-| A click on a tab shows it; in a terminal whose program asked for the
-| mouse, the mouse goes to it; otherwise the wheel scrolls back and a drag
-| selects (and copies, on release).
+| In a terminal whose program asked for the mouse, the mouse goes to it;
+| otherwise the wheel scrolls back and a drag selects (and copies, on
+| release).
 HandleMouse { kind, button, row, col } =>
+    if term = null, return Nothing
     emit Hit { row = row, col = col } to this get hit
-    if selection ≠ null and selection.dragging and kind = "drag" and hit.id = selection.id and hit.at ≠ null
+    if selection ≠ null and selection.dragging and kind = "drag" and hit.at ≠ null
         selection = selection + { head = hit.at }
         return Selecting
     if selection ≠ null and selection.dragging and kind = "release"
@@ -350,37 +269,26 @@ HandleMouse { kind, button, row, col } =>
             return Clicked
         emit CopySelection to this
         return Selected
-    if hit.group < 0, return Nothing
-    if kind = "press" and hit.tab ≥ 0
-        held = groups[hit.group] + { active = hit.tab }
-        groups = groups[0, hit.group) + [held] + groups(hit.group, length)
-        current = hit.group
-        return Shown
     if hit.at = null, return Nothing
-    if kind = "press", current = hit.group
-    screen = screens["$hit.id"]
-    wants = screen ≠ null and screen.mouse ≠ "none" and screen.scrolled = 0
+    wants = last_screen ≠ null and last_screen.mouse ≠ "none" and last_screen.scrolled = 0
     if wants
-        emit Mouse { id = hit.id, kind = kind, button = button, row = hit.at.row, col = hit.at.col } to shells
+        emit Mouse { id = term.id, kind = kind, button = button, row = hit.at.row, col = hit.at.col } to shells
         return Sent
     if kind = "wheel"
         command = "scroll.lineUp"
         if button = 1, command = "scroll.lineDown"
-        emit ScrollBy { id = hit.id, command = command } to this
-        emit ScrollBy { id = hit.id, command = command } to this
-        emit ScrollBy { id = hit.id, command = command } to this
+        loop n over [1, 2, 3]
+            emit ScrollBy { command = command } to this
         return Scrolled
     if kind = "press" and button = 0
-        selection = { id = hit.id, anchor = hit.at, head = hit.at, dragging = true }
+        selection = { anchor = hit.at, head = hit.at, dragging = true }
         return Selecting
     return Nothing
 
 | The selection's text onto the desktop's clipboard.
 CopySelection =>
-    if selection = null, return Nothing
-    screen = screens["$selection.id"]
-    if screen = null, return Nothing
-    emit SelectedText { screen = screen, selection = selection } to this get chosen
+    if selection = null or last_screen = null, return Nothing
+    emit SelectedText { screen = last_screen, selection = selection } to this get chosen
     if chosen.text = "", return Nothing
     emit Copy { text = chosen.text } to win get copied
     if copied ∈ Exception, message = "Copy: " + copied.message
@@ -423,53 +331,33 @@ LoadSettings =>
 | ── Drawing ────────────────────────────────────────────────────────────
 
 State =>
-    return ConsoleState { groups = groups, current = current, cols = cols, rows = rows, settings = settings, selection = selection, message = message, font_px = font_px }
+    return ConsoleState { term = term, cols = cols, rows = rows, settings = settings, selection = selection, message = message, font_px = font_px, scroll = scroll }
 
-| Every terminal a group shows: told its size when that changed, and read
-| as far back as it is scrolled.
-Screens { placed } =>
-    emit Strips { state = { groups = groups, settings = settings } } to this get strips
-    read = {}
-    loop pane over placed
-        group = groups[pane.id]
-        view = group.tabs[group.active]
-        wide = pane.width
-        if pane.x > 0, wide = pane.width - 1
-        high = pane.height
-        if strips.strips, high = pane.height - 1
-        size = "" + wide + "x" + high
-        if sizes_told["$view.id"] ≠ size and wide > 0 and high > 0
-            emit Resize { id = view.id, cols = wide, rows = high } to shells
-            sizes_told = sizes_told + { "$view.id" = size }
-        back = scrolls["$view.id"]
-        if back = null, back = 0
-        emit Screen { id = view.id, scroll = back } to shells get screen
-        if screen ∉ Exception
-            read = read + { "$view.id" = screen }
-            | Scrolled no further than there was.
-            scrolls = scrolls + { "$view.id" = screen.scrolled }
-    return ScreensRead { screens = read }
+| The terminal: told the window's size when that changed, and read as far
+| back as it is scrolled.
+ReadScreen =>
+    if term = null, return ScreenRead { screen = null }
+    size = "" + cols + "x" + rows
+    if size_told ≠ size and cols > 0 and rows > 0
+        emit Resize { id = term.id, cols = cols, rows = rows } to shells
+        size_told = size
+    emit Screen { id = term.id, scroll = scroll } to shells get screen
+    if screen ∈ Exception, return ScreenRead { screen = null }
+    | Scrolled no further than there was.
+    scroll = screen.scrolled
+    return ScreenRead { screen = screen }
 
 Render =>
     if not running, return Skipped
+    emit ReadScreen to this get read
+    if read.screen ≠ null
+        last_screen = read.screen
+        | Called after what its program calls itself.
+        if read.screen.title ≠ "", term = term + { label = read.screen.title }
     emit State to this get state
-    emit Placement { state = state } to this get placement
-    emit Screens { placed = placement.placed } to this get read
-    screens = screens + read.screens
-    | Tabs are named after what their program calls itself.
-    loop gi, group over groups
-        loop ti, tab over group.tabs
-            seen = read.screens["$tab.id"]
-            if seen ≠ null and seen.title ≠ "" and tab.label ≠ seen.title
-                held = groups[gi]
-                renamed = held.tabs[0, ti) + [tab + { label = seen.title }] + held.tabs(ti, length)
-                groups = groups[0, gi) + [held + { tabs = renamed }] + groups(gi, length)
-    emit State to this get state_now
-    emit Frame { state = state_now, placement = placement, screens = read.screens } to this get frame
-    places = frame.places
+    emit Frame { state = state, screen = read.screen } to this get frame
     emit Draw { id = wid, overlays = frame.overlays, cursor_row = frame.cursor_row, cursor_col = frame.cursor_col } to win
-    emit Active { groups = groups, current = current } to this get shown
     title = "console"
-    if shown.buffer ≠ null, title = shown.buffer.label + " — console"
+    if term ≠ null, title = term.label + " — console"
     emit Title { id = wid, text = title } to win
     return Rendered

@@ -60,11 +60,6 @@ while time.time() < end:
     time.sleep(0.2)
 check(seen.split() == ["033", "[", "9", ";", "5", "u"], "ctrl+tab reaches the program inside whole: " + " ".join(seen.split()))
 
-xdrive.key("ctrl+shift+t")
-check(wait_title("Terminal 2 — console"), "ctrl+shift+t: a new tab, with the keys")
-xdrive.key("ctrl+shift+Page_Down")
-check(wait_title("smoke-title — console"), "ctrl+shift+pagedown: round to the first tab")
-
 xdrive.key("ctrl+shift+q")
 try:
     proc.wait(10)

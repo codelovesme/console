@@ -1,7 +1,7 @@
 | Settings — the user's preferences, as VS Code keeps them: a JSON file,
 | `settings.json`, in `$XDG_CONFIG_HOME/codelovesme-console/` (else
-| `~/.config/…`). Read at start, and again when the tab that edits it
-| (Ctrl+Shift+,) closes. Pure: text in, checked values out.
+| `~/.config/…`). Read when a console starts. Pure: text in, checked values
+| out.
 |
 | A value that is missing or not what it should be falls back to its
 | default, and says so — a typo in the file never stops the console.
@@ -16,10 +16,6 @@ defaults = {
     "terminal.scrollback" = 5000
     "window.cols" = 110
     "window.rows" = 32
-    | How much of the window a split takes, in percent.
-    "split.size" = 50
-    | The tab strip over a single terminal: shown or not.
-    "tabs.alwaysShow" = false
 }
 
 | Numbers: the key, and the least and most it may be.
@@ -28,7 +24,6 @@ numbers = [
     { key = "terminal.scrollback", least = 0, most = 100000 }
     { key = "window.cols", least = 20, most = 1000 }
     { key = "window.rows", least = 5, most = 500 }
-    { key = "split.size", least = 10, most = 90 }
 ]
 strings_keys = ["font.family", "font.bold", "terminal.shell"]
 
@@ -61,9 +56,6 @@ ReadSettings { text } =>
         s = given[key]
         if s ∈ String, values = values + { "$key" = s }
         if s ≠ null and s ∉ String, wrong += key + " (text)"
-    always = given["tabs.alwaysShow"]
-    if always ∈ Boolean, values = values + { "tabs.alwaysShow" = always }
-    if always ≠ null and always ∉ Boolean, wrong += "tabs.alwaysShow (true or false)"
     problem = ""
     loop i, what over wrong
         if i = 0, problem = "settings.json: using the default for " + what

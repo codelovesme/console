@@ -1,5 +1,5 @@
 {
-  "description": "The codelovesme console: a terminal in a window of its own, built on euglena. Tabs, splits, scrollback — and every key reaches the program inside whole (Ctrl+Tab, Ctrl+J, Alt+arrows).",
+  "description": "The codelovesme console: a terminal in a window of its own, built on euglena. One terminal a window, scrollback — and every key reaches the program inside whole (Ctrl+Tab, Ctrl+J, Alt+arrows).",
   "name": "console",
   "organelles": {
     "env": "env",
