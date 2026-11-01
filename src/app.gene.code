@@ -126,12 +126,16 @@ ScreenOf =>
 
 | ── From the window ────────────────────────────────────────────────────
 
-Key { id, name, text } =>
+Key { id, name, text, event } =>
     if not running, return Ignored
     message = ""
-    emit HandleKey { name = name, text = text } to this get handled
+    emit HandleKey { name = name, text = text, event = event } to this get handled
     emit Render to this
     return handled
+
+KeyReleased { name } =>
+    if running and term ≠ null, emit Type { id = term.id, name = name, text = "", event = "release" } to shells
+    return Noted
 
 Resize { id, cols as width, rows as height } =>
     cols = width
@@ -144,6 +148,8 @@ CloseRequested { id } =>
     return Closing
 
 Focus { id, focused } =>
+    | End a held shortcut if the window loses the keyboard before key-up.
+    if not focused and running and term ≠ null, emit Type { id = term.id, name = "left_control", text = "", event = "release" } to shells
     return Noted
 
 Mouse { id, kind, button, row, col, mods } =>
@@ -169,7 +175,7 @@ TerminalExited { id, code } =>
 | A bound command runs; any other key goes to the terminal, which is
 | brought back to its live screen. A program on the alternate screen (an
 | editor, the ide) has no scrollback: the scroll keys are its own.
-HandleKey { name, text } =>
+HandleKey { name, text, event } =>
     emit Keymap { name = name, pending = chord, table = keytable } to this get bound
     chord = bound.pending
     if chord ≠ "", return Waiting
@@ -181,7 +187,7 @@ HandleKey { name, text } =>
     if term = null, return Nothing
     scroll = 0
     selection = null
-    emit Type { id = term.id, name = name, text = text } to shells
+    emit Type { id = term.id, name = name, text = text, event = event } to shells
     return Typed
 
 | A command, from a key.

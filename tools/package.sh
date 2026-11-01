@@ -25,7 +25,11 @@ stage="$out/$name"
 rm -rf "$stage"
 mkdir -p "$stage"
 grep -v '^link ".*\.so"' "$root/main.code" | grep -v '^| ' > "$root/standalone.code"
-(cd "$root" && cdlvsm code build standalone.code -r -o "$stage/console-bin")
+if [ -n "${CODE_BIN:-}" ]; then
+  (cd "$root" && "$CODE_BIN" build standalone.code -r -o "$stage/console-bin")
+else
+  (cd "$root" && cdlvsm code build standalone.code -r -o "$stage/console-bin")
+fi
 rm -f "$root/standalone.code"
 cp "$root/bin/console" "$stage/console"
 cp "$root/README.md" "$stage/"

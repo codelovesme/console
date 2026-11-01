@@ -120,3 +120,19 @@ the above on a clean machine, then [tools/package.sh](tools/package.sh)
 builds the console as a program and lays out
 `console-<tag>-x86_64-linux.tar.gz` (the program, [its launcher](bin/console),
 its organelles), smoke-tests it under Xvfb, and publishes it.
+
+### Development key-release support (ticket 188, unreleased)
+
+The console forwards press/repeat/release events to programs that opt into the
+Kitty keyboard protocol; legacy shells receive no release bytes. Losing window
+focus releases Control so a held microphone shortcut cannot remain active.
+
+These module additions are source-only. For this development checkout:
+
+```sh
+python3 ../code/scripts/build-key-event-modules.py --abi 2 --out organelles
+```
+
+The public lockfile still describes the released baseline. A development
+bundle must retain these source modules after packaging, rather than treating
+the old public pins as supplying key-release support. No public release was cut.
