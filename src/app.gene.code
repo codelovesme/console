@@ -149,7 +149,7 @@ CloseRequested { id } =>
 
 Focus { id, focused } =>
     | End a held shortcut if the window loses the keyboard before key-up.
-    if not focused and running and term ≠ null, emit Type { id = term.id, name = "left_control", text = "", event = "release" } to shells
+    if not focused and running and term ≠ null, emit Type { id = term.id, name = "escape", text = "", event = "release" } to shells
     return Noted
 
 Mouse { id, kind, button, row, col, mods } =>

@@ -125,7 +125,7 @@ its organelles), smoke-tests it under Xvfb, and publishes it.
 
 The console forwards press/repeat/release events to programs that opt into the
 Kitty keyboard protocol; legacy shells receive no release bytes. Losing window
-focus releases Control so a held microphone shortcut cannot remain active.
+focus sends an Escape release so held and latched microphone shortcuts close.
 
 These module additions are source-only. For this development checkout:
 
